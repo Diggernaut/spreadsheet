@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/spf13/cast"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
@@ -87,6 +88,54 @@ func (s *Service) FetchSpreadsheet(id string) (spreadsheet Spreadsheet, err erro
 	spreadsheet.service = s
 	return
 }
+func (s *Service) NewSheet(sh *Sheet, l int, name string) (err error) {
+	path := "https://sheets.googleapis.com/v4/spreadsheets/" + sh.Spreadsheet.ID + ":batchUpdate"
+	d := []byte(`
+		[{
+		  "addSheet": {
+			"properties": {
+			  "title": "` + name + `",
+			  "gridProperties": {
+				"rowCount": 0,
+				"columnCount": 0
+			  }
+			}
+		}
+	  }]`)
+	var p = make([]map[string]interface{}, 0)
+	err = json.Unmarshal(d, &p)
+	if err != nil {
+		return err
+	}
+	var e = make(map[string]interface{})
+	e["requests"] = p
+	body, err := sh.Spreadsheet.service.postv4(path, e)
+	if err != nil {
+		return err
+	}
+	fmt.Println(body)
+	return
+}
+func (s *Service) ClearSheet(sh *Sheet) (err error) {
+	path := "https://sheets.googleapis.com/v4/spreadsheets/" + sh.Spreadsheet.ID + ":batchUpdate"
+	d := []byte(`[
+		{
+		  "updateCells": {
+			"range": {
+			  "sheetId": ` + cast.ToString(sh.Properties.ID) + `
+			},
+			"fields": "*"
+		  }
+		}
+	  ]`)
+	var p = make([]map[string]interface{}, 0)
+	json.Unmarshal(d, &p)
+	var e = make(map[string]interface{})
+	e["requests"] = p
+	body, err := sh.Spreadsheet.service.postv4(path, e)
+	fmt.Println(body)
+	return
+}
 
 // SyncSheet updates sheet
 func (s *Service) SyncSheet(sheet *Sheet) (err error) {
@@ -104,6 +153,44 @@ func (s *Service) SyncSheet(sheet *Sheet) (err error) {
 	sheet.modifiedCells = []*Cell{}
 	sheet.newMaxRow = sheet.Properties.GridProperties.RowCount
 	sheet.newMaxColumn = sheet.Properties.GridProperties.ColumnCount
+	return
+}
+func (s *Service) SyncRawSheet(sheet *Sheet, maxrow, maxcol uint, cell []*Cell) (err error) {
+	if maxrow > sheet.Properties.GridProperties.RowCount ||
+		maxcol > sheet.Properties.GridProperties.ColumnCount {
+		err = s.ExpandSheet(sheet, maxrow, maxcol)
+		if err != nil {
+			return
+		}
+	}
+	err = s.syncRawCells(sheet, cell)
+	if err != nil {
+		return
+	}
+	sheet.modifiedCells = []*Cell{}
+	sheet.newMaxRow = sheet.Properties.GridProperties.RowCount
+	sheet.newMaxColumn = sheet.Properties.GridProperties.ColumnCount
+	return
+}
+func (s *Service) syncRawCells(sheet *Sheet, cell []*Cell) (err error) {
+	path := fmt.Sprintf("/spreadsheets/%s/values:batchUpdate", sheet.Spreadsheet.ID)
+	params := map[string]interface{}{
+		"valueInputOption": "USER_ENTERED",
+		"data":             make([]map[string]interface{}, 0, len(cell)),
+	}
+	for _, cell := range cell {
+		valueRange := map[string]interface{}{
+			"range":          sheet.Properties.Title + "!" + cell.Pos(),
+			"majorDimension": "COLUMNS",
+			"values": [][]string{
+				[]string{
+					cell.Value,
+				},
+			},
+		}
+		params["data"] = append(params["data"].([]map[string]interface{}), valueRange)
+	}
+	_, err = sheet.Spreadsheet.service.post(path, params)
 	return
 }
 
@@ -185,8 +272,28 @@ func (s *Service) get(path string) (body []byte, err error) {
 	err = s.checkError(body)
 	return
 }
-
-func (s *Service) post(path string, params map[string]interface{}) (body string, err error) {
+func (s *Service) postv4(path string, params interface{}) (body string, err error) {
+	reqBody, err := json.Marshal(params)
+	if err != nil {
+		return
+	}
+	resp, err := s.client.Post(path, "application/json", bytes.NewReader(reqBody))
+	if err != nil {
+		return
+	}
+	bytes, err := ioutil.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		return
+	}
+	err = s.checkError(bytes)
+	if err != nil {
+		return
+	}
+	body = string(bytes)
+	return
+}
+func (s *Service) post(path string, params interface{}) (body string, err error) {
 	reqBody, err := json.Marshal(params)
 	if err != nil {
 		return

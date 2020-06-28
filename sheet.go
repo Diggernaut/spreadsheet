@@ -14,10 +14,9 @@ type Sheet struct {
 	// Charts []*EmbeddedChart `json:"charts"`
 	// BandedRanges []*BandedRange `json:"bandedRanges"`
 
-	Spreadsheet *Spreadsheet `json:"-"`
-	Rows        [][]Cell     `json:"-"`
-	Columns     [][]Cell     `json:"-"`
-
+	Spreadsheet   *Spreadsheet `json:"-"`
+	Rows          [][]Cell     `json:"-"`
+	Columns       [][]Cell     `json:"-"`
 	modifiedCells []*Cell
 	newMaxRow     uint
 	newMaxColumn  uint
