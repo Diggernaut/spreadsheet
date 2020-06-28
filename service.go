@@ -331,3 +331,29 @@ func (s *Service) checkError(body []byte) (err error) {
 	err = fmt.Errorf("error status: %s, code:%d, message: %s", status, int(code), message)
 	return
 }
+	if err != nil {
+		return
+	}
+	resErr, hasErr := res["error"].(map[string]interface{})
+	if !hasErr {
+		return
+	}
+	code := resErr["code"].(float64)
+	message := resErr["message"].(string)
+	status := resErr["status"].(string)
+	err = fmt.Errorf("error status: %s, code:%d, message: %s", status, int(code), message)
+	return
+}
+	if err != nil {
+		return
+	}
+	resErr, hasErr := res["error"].(map[string]interface{})
+	if !hasErr {
+		return
+	}
+	code := resErr["code"].(float64)
+	message := resErr["message"].(string)
+	status := resErr["status"].(string)
+	err = fmt.Errorf("error status: %s, code:%d, message: %s", status, int(code), message)
+	return
+}
