@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 
@@ -118,6 +119,8 @@ func (s *Service) NewSheet(sh *Sheet, l int, name string) (err error) {
 }
 func (s *Service) ClearSheet(sh *Sheet) (err error) {
 	path := "https://sheets.googleapis.com/v4/spreadsheets/" + sh.Spreadsheet.ID + ":batchUpdate"
+	// path := "https://sheets.googleapis.com/v4/spreadsheets/" + sh.Spreadsheet.ID + "/values:clear"
+
 	d := []byte(`[
 		{
 		  "updateCells": {
@@ -156,20 +159,27 @@ func (s *Service) SyncSheet(sheet *Sheet) (err error) {
 	return
 }
 func (s *Service) SyncRawSheet(sheet *Sheet, maxrow, maxcol uint, cell []*Cell) (err error) {
-	if maxrow > sheet.Properties.GridProperties.RowCount ||
-		maxcol > sheet.Properties.GridProperties.ColumnCount {
-		err = s.ExpandSheet(sheet, maxrow, maxcol)
-		if err != nil {
-			return
-		}
+	log.Println("here1")
+	// if maxrow > sheet.newMaxRow ||
+	// 	maxcol > sheet.newMaxColumn {
+	// 	log.Println("here2")
+	err = s.ExpandSheet(sheet, maxrow, maxcol)
+	if err != nil {
+		return
 	}
+	// }
+	log.Println("here2")
 	err = s.syncRawCells(sheet, cell)
 	if err != nil {
 		return
 	}
+	log.Println("here3")
 	sheet.modifiedCells = []*Cell{}
+	log.Println("here4")
 	sheet.newMaxRow = sheet.Properties.GridProperties.RowCount
+	log.Println("here5")
 	sheet.newMaxColumn = sheet.Properties.GridProperties.ColumnCount
+	log.Println("here6")
 	return
 }
 func (s *Service) syncRawCells(sheet *Sheet, cell []*Cell) (err error) {
@@ -190,7 +200,11 @@ func (s *Service) syncRawCells(sheet *Sheet, cell []*Cell) (err error) {
 		}
 		params["data"] = append(params["data"].([]map[string]interface{}), valueRange)
 	}
-	_, err = sheet.Spreadsheet.service.post(path, params)
+	log.Println("hah1")
+	// _, err = sheet.Spreadsheet.service.post(path, params)
+	_, err = s.post(path, params)
+
+	log.Println("hah2")
 	return
 }
 
@@ -199,15 +213,19 @@ func (s *Service) ExpandSheet(sheet *Sheet, row, column uint) (err error) {
 	props := sheet.Properties
 	props.GridProperties.RowCount = row
 	props.GridProperties.ColumnCount = column
-
+	log.Println("hh")
+	log.Println(row)
+	log.Println(column)
 	r, err := newUpdateRequest(sheet.Spreadsheet)
 	if err != nil {
 		return
 	}
-	err = r.UpdateSheetProperties(sheet, &props).Do()
+	log.Println("hh2")
+	err = r.UpdateSheetProperties(sheet, &props, false).DoService(s)
 	if err != nil {
 		return
 	}
+	log.Println("hh3")
 	sheet.newMaxRow = row
 	sheet.newMaxColumn = column
 	return
@@ -328,32 +346,9 @@ func (s *Service) checkError(body []byte) (err error) {
 	code := resErr["code"].(float64)
 	message := resErr["message"].(string)
 	status := resErr["status"].(string)
-	err = fmt.Errorf("error status: %s, code:%d, message: %s", status, int(code), message)
-	return
-}
 	if err != nil {
+		err = fmt.Errorf("error status: %s, code:%d, message: %s", status, int(code), message)
 		return
 	}
-	resErr, hasErr := res["error"].(map[string]interface{})
-	if !hasErr {
-		return
-	}
-	code := resErr["code"].(float64)
-	message := resErr["message"].(string)
-	status := resErr["status"].(string)
-	err = fmt.Errorf("error status: %s, code:%d, message: %s", status, int(code), message)
-	return
-}
-	if err != nil {
-		return
-	}
-	resErr, hasErr := res["error"].(map[string]interface{})
-	if !hasErr {
-		return
-	}
-	code := resErr["code"].(float64)
-	message := resErr["message"].(string)
-	status := resErr["status"].(string)
-	err = fmt.Errorf("error status: %s, code:%d, message: %s", status, int(code), message)
-	return
+	return nil
 }

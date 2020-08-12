@@ -3,6 +3,7 @@ package spreadsheet
 import (
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 )
 
@@ -30,21 +31,42 @@ func (r *updateRequest) Do() (err error) {
 		err = errors.New("Requests must not be empty")
 		return
 	}
+	log.Println("do1")
 	path := fmt.Sprintf("/spreadsheets/%s:batchUpdate", r.spreadsheet.ID)
+	log.Println("do2")
 	params := make(map[string]interface{}, len(r.body))
 	for k, v := range r.body {
 		params[k] = v
 	}
+	log.Println("do3")
 	_, err = r.spreadsheet.service.post(path, params)
+	log.Println("do4")
 	return
 }
-
+func (r *updateRequest) DoService(s *Service) (err error) {
+	if len(r.body["requests"]) == 0 {
+		err = errors.New("Requests must not be empty")
+		return
+	}
+	log.Println("do1")
+	path := fmt.Sprintf("/spreadsheets/%s:batchUpdate", r.spreadsheet.ID)
+	log.Println("do2")
+	params := make(map[string]interface{}, len(r.body))
+	for k, v := range r.body {
+		params[k] = v
+	}
+	log.Println("do3")
+	_, err = s.post(path, params)
+	log.Println("do4")
+	return
+}
 func (r *updateRequest) UpdateSpreadsheetProperties() {
 
 }
 
-func (r *updateRequest) UpdateSheetProperties(sheet *Sheet, sheetProperties *SheetProperties) (ret *updateRequest) {
+func (r *updateRequest) UpdateSheetProperties(sheet *Sheet, sheetProperties *SheetProperties, check bool) (ret *updateRequest) {
 	ret = r
+	log.Println("upd1")
 	params := map[string]interface{}{
 		"sheetId": sheet.Properties.ID,
 	}
@@ -53,25 +75,38 @@ func (r *updateRequest) UpdateSheetProperties(sheet *Sheet, sheetProperties *She
 		params["title"] = sheetProperties.Title
 		fields = append(fields, "title")
 	}
+	log.Println("upd2")
 	if sheetProperties.Index != sheet.Properties.Index {
 		params["index"] = sheetProperties.Index
 		fields = append(fields, "index")
 	}
+	log.Println("upd3")
 	gridParams := make(map[string]interface{}, 0)
 	props := sheetProperties.GridProperties
+	log.Println("upd4")
 	currentProps := sheet.Properties.GridProperties
-	if props.RowCount != currentProps.RowCount {
+	log.Println("upd5")
+	if check {
+		if props.RowCount != currentProps.RowCount {
+			gridParams["rowCount"] = props.RowCount
+			fields = append(fields, "gridProperties.rowCount")
+		}
+		if props.ColumnCount != currentProps.ColumnCount {
+			gridParams["columnCount"] = props.ColumnCount
+			fields = append(fields, "gridProperties.columnCount")
+		}
+	} else {
 		gridParams["rowCount"] = props.RowCount
 		fields = append(fields, "gridProperties.rowCount")
-	}
-	if props.ColumnCount != currentProps.ColumnCount {
 		gridParams["columnCount"] = props.ColumnCount
 		fields = append(fields, "gridProperties.columnCount")
 	}
+	log.Println("upd6")
 	if props.FrozenRowCount != currentProps.FrozenRowCount {
 		gridParams["frozenRowCount"] = props.FrozenRowCount
 		fields = append(fields, "gridProperties.frozenRowCount")
 	}
+	log.Println("upd7")
 	if props.FrozenColumnCount != currentProps.FrozenColumnCount {
 		gridParams["frozenColumnCount"] = props.FrozenColumnCount
 		fields = append(fields, "gridProperties.frozenColumnCount")
@@ -87,10 +122,12 @@ func (r *updateRequest) UpdateSheetProperties(sheet *Sheet, sheetProperties *She
 		params["hidden"] = sheetProperties.Hidden
 		fields = append(fields, "hidden")
 	}
+	log.Println("upd8")
 	if sheetProperties.TabColor != sheet.Properties.TabColor {
 		params["tabColor"] = sheetProperties.TabColor
 		fields = append(fields, "tabColor")
 	}
+	log.Println("upd9")
 	if sheetProperties.RightToLeft != sheet.Properties.RightToLeft {
 		params["rightToLeft"] = sheet.Properties.RightToLeft
 		fields = append(fields, "rightToLeft")
@@ -98,6 +135,7 @@ func (r *updateRequest) UpdateSheetProperties(sheet *Sheet, sheetProperties *She
 	if len(fields) == 0 {
 		return
 	}
+	log.Println("upd10")
 	r.body["requests"] = append(r.body["requests"], map[string]interface{}{
 		"updateSheetProperties": map[string]interface{}{
 			"properties": params,
